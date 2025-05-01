@@ -1,3 +1,15 @@
+<style>
+#bannerimage {
+  width: 300px;
+  background-image: url('banner.png');
+  height: 100px;
+  background-position: center;
+}
+body {
+  background-image: url('background.png');
+}
+</style>
+
 <?php
 session_start();
 $db = new PDO('sqlite:data.db');
@@ -144,15 +156,20 @@ if (is_logged_in() && isset($_GET['rank'])) {
 
 // Vote (thumbs up)
 if (is_logged_in() && isset($_GET['vote'])) {
-    $id = (int)$_GET['vote'];
+    $pid = (int)$_GET['vote'];
     $uid = $_SESSION['user_id'];
-    try {
-        $stmt = $db->prepare("INSERT INTO votes (user_id, playlist_id) VALUES (?, ?)");
-        $stmt->execute([$uid, $id]);
-        $db->prepare("UPDATE playlists SET score = score + 1, last_active = ? WHERE id = ?")->execute([time(), $id]);
-    } catch (PDOException $e) {
-        // already voted
+
+    // Check if already voted
+    $stmt = $db->prepare("SELECT 1 FROM votes WHERE user_id = ? AND playlist_id = ?");
+    $stmt->execute([$uid, $pid]);
+
+    if (!$stmt->fetch()) {
+        $db->prepare("INSERT INTO votes (user_id, playlist_id) VALUES (?, ?)")->execute([$uid, $pid]);
+        $db->prepare("UPDATE playlists SET score = score + 1, last_active = ? WHERE id = ?")->execute([time(), $pid]);
     }
+
+    header("Location: ?");
+    exit;
 }
 
 // Comment
@@ -222,17 +239,20 @@ form { margin-bottom: 1em; }
 </form>
 <?php endif; ?>
 
+<div id="bannerimage"></div>
+
 <h3>Playlists</h3>
 <?php
 $playlists = $db->query("SELECT * FROM playlists ORDER BY score DESC")->fetchAll();
 foreach ($playlists as $p):
 ?>
 <div class="playlist">
+
 <b><?=htmlspecialchars($p['title'])?></b><br>
 <a href="<?=htmlspecialchars($p['url'])?>" target="_blank"><?=htmlspecialchars($p['url'])?></a><br>
 Score: <?=$p['score']?> |
 <?php if (is_logged_in()): ?>
- <a href="?rank=<?=$p['id']?>">Rank ↑</a> |
+ <a href="?vote=<?=$p['id']?>">vote ↑</a> |
  <a href="?vote=<?=$p['id']?>">👍</a>
  <?php if ($p['user_id'] == $_SESSION['user_id']): ?>
   | <a href="?delete_playlist=<?=$p['id']?>" onclick="return confirm('Delete this playlist?')">🗑 Delete</a>
@@ -263,5 +283,6 @@ foreach ($cs as $c):
 <?php endif; ?>
 </div>
 <?php endforeach; ?>
+<a href="https://github.com/netpipe/yt-playlists">🕸Pproject Page🕸</a>
 </body>
 </html>
